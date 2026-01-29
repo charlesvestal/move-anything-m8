@@ -12,7 +12,7 @@ import {
     MovePlay, MoveRec, MoveLoop, MoveMute, MoveUndo,
     MovePad32, MidiClock
 } from '/data/UserData/move-anything/shared/constants.mjs';
-import { loadConfig, updateConfig, handleMoveKnobs, changeBank, changeSave } from "./virtual_knobs.mjs";
+import { loadConfig, updateConfig, handleMoveKnobs, changeBank, changeSave, setDisplayMessage } from "./virtual_knobs.mjs";
 
 /* LPP note layout (10x10 grid) */
 const lppNotes = [
@@ -262,7 +262,7 @@ globalThis.onMidiMessageExternal = function (data) {
         m8Connected = true;
         showingTop = true;
         loadConfig();
-        updateConfig();  // Sets line2 to bank info, don't overwrite it
+        updateConfig();  // Now properly updates display via setDisplayMessage
     }
 
     let lppNoteNumber = data[1];
@@ -414,6 +414,7 @@ globalThis.onMidiMessageInternal = function (data) {
 
 globalThis.init = function () {
     console.log("M8 LPP Emulator module starting...");
+    setDisplayMessage(displayMessage);  // Pass displayMessage to virtual_knobs
     displayMessage("M8 LPP Emulator", "Waiting for M8", "to connect", "");
     loadConfig();
 
