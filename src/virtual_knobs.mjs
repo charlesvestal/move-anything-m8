@@ -1,5 +1,13 @@
-import { displayMessage } from "./ui.js";
 import * as std from "std";
+
+/* displayMessage is passed in from ui.js to avoid circular import issues */
+let _displayMessage = null;
+export function setDisplayMessage(fn) {
+    _displayMessage = fn;
+}
+function displayMessage(l1, l2, l3, l4) {
+    if (_displayMessage) _displayMessage(l1, l2, l3, l4);
+}
 
 const knobLEDs = {}; // LED color cache
 const synthwaveColorSweep = [104, 105, 20, 21, 23, 26, 25];
@@ -205,7 +213,7 @@ export function updateConfig() {
     setKnobLed(78, knobs[7]);
     setKnobLed(79, knobs[8]);
 
-    displayMessage(undefined, `Save ${currentSave} Bank ${currentBank}`);
+    displayMessage(undefined, `M8: Save ${currentSave} Bank ${currentBank}`, "", "");
 }
 
 function clamp(value, min, max) {
