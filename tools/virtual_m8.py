@@ -6,16 +6,20 @@ This script acts as a virtual M8 device, receiving Launchpad Pro MIDI messages
 from Move's M8 emulator and responding with LED sysex like a real M8 would.
 
 Usage:
-    python virtual_m8.py [--list] [--input NAME] [--output NAME]
+    python virtual_m8.py [--list] [--input NAME] [--output NAME] [--passive]
 
 Requirements:
     pip install mido python-rtmidi
 
 The script will:
-1. Connect to Move via USB MIDI
-2. Receive LPP button/pad messages
-3. Send LED color sysex responses
-4. Log all MIDI traffic for debugging
+1. Send Device Inquiry Request (F0 7E 7F 06 01 F7) like a real M8
+2. Wait for LPP identity response from Move's M8 emulator
+3. Send initial LED state once connected
+4. Receive button/pad presses and respond with LED updates
+5. Log all MIDI traffic for debugging
+
+Use --passive flag to skip the Device Inquiry and wait for the LPP to
+identify itself first (tests the fallback connection path).
 """
 
 import argparse
@@ -78,6 +82,14 @@ M8_COLORS = {
     'dim_green': (0, 20, 0),
     'dim_blue': (0, 0, 20),
 }
+
+# M8 Device Inquiry Request - sent by real M8 to discover Launchpad Pro
+# F0 7E 7F 06 01 F7 = Universal Non-Real Time Device Inquiry
+M8_DEVICE_INQUIRY = [0x7E, 0x7F, 0x06, 0x01]  # Without F0/F7 for mido sysex
+
+# LPP Device Inquiry Response pattern we expect back
+# F0 7E 00 06 02 00 20 29 ... F7 (Novation manufacturer ID is 00 20 29)
+LPP_IDENTITY_PATTERN = (0x7E, 0x00, 0x06, 0x02)
 
 # M8 screen layout simulation
 # In M8, different buttons have different functions
@@ -321,11 +333,14 @@ def find_move_ports():
     return input_port, output_port
 
 
-def run_virtual_m8(input_port, output_port, verbose=False):
+def run_virtual_m8(input_port, output_port, verbose=False, use_real_handshake=True):
     """Main loop - receive MIDI, simulate M8, send responses"""
 
     m8 = VirtualM8(verbose=verbose)
     connected = False  # Track if we've connected to LPP
+    inquiry_sent = False
+    inquiry_retry_time = 0
+    INQUIRY_RETRY_INTERVAL = 2.0  # Retry every 2 seconds
 
     log(f"Opening input:  {input_port}")
     log(f"Opening output: {output_port}")
@@ -338,10 +353,27 @@ def run_virtual_m8(input_port, output_port, verbose=False):
         return
 
     log("Virtual M8 running! Press Ctrl+C to exit.")
-    log("Waiting for LPP identity response...")
+
+    if use_real_handshake:
+        log("Using REAL M8 handshake (Device Inquiry Request)")
+        log("Sending Device Inquiry Request: F0 7E 7F 06 01 F7")
+        # Send Device Inquiry Request like a real M8 does
+        outport.send(mido.Message('sysex', data=M8_DEVICE_INQUIRY))
+        inquiry_sent = True
+        inquiry_retry_time = time.time()
+        log("Waiting for LPP identity response...")
+    else:
+        log("Using PASSIVE mode (waiting for LPP to identify itself)")
 
     try:
         while True:
+            # Retry Device Inquiry if no response yet (real handshake mode)
+            if use_real_handshake and not connected and inquiry_sent:
+                if time.time() - inquiry_retry_time > INQUIRY_RETRY_INTERVAL:
+                    log("No response yet, retrying Device Inquiry Request...")
+                    outport.send(mido.Message('sysex', data=M8_DEVICE_INQUIRY))
+                    inquiry_retry_time = time.time()
+
             # Process incoming MIDI
             for msg in inport.iter_pending():
                 updates = []
@@ -358,12 +390,13 @@ def run_virtual_m8(input_port, output_port, verbose=False):
                         log(f"  Data: {' '.join(f'{b:02X}' for b in msg.data[:20])}...", 'rx')
 
                     # Check for LPP identity response: 7E 00 06 02 00 20 29 (Novation)
-                    # This is what the M8 emulator sends to announce itself
-                    if len(msg.data) >= 7 and msg.data[0:4] == (0x7E, 0x00, 0x06, 0x02):
-                        log("LPP identity response detected! Sending initial LED state...", 'info')
+                    # This is what the M8 emulator sends in response to our Device Inquiry
+                    if len(msg.data) >= 7 and msg.data[0:4] == LPP_IDENTITY_PATTERN:
+                        log("LPP identity response detected! Connection established.", 'info')
                         if not connected:
                             connected = True
                             # Send initial LED state as note messages (like real M8)
+                            log("Sending initial LED state...", 'tx')
                             initial_leds = m8.get_all_leds()
                             notes = create_led_notes(initial_leds)
                             for note_msg in notes:
@@ -412,6 +445,8 @@ Examples:
                         help='Output MIDI port name (to Move)')
     parser.add_argument('--verbose', '-v', action='store_true',
                         help='Verbose output (show all MIDI data)')
+    parser.add_argument('--passive', '-p', action='store_true',
+                        help='Passive mode: wait for LPP identity instead of sending Device Inquiry')
 
     args = parser.parse_args()
 
@@ -434,7 +469,7 @@ Examples:
         list_ports()
         return
 
-    run_virtual_m8(input_port, output_port, verbose=args.verbose)
+    run_virtual_m8(input_port, output_port, verbose=args.verbose, use_real_handshake=not args.passive)
 
 
 if __name__ == '__main__':
