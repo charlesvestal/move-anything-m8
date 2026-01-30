@@ -208,9 +208,7 @@ function initLPP() {
 
     // enable knobs (primary bank)
     loadConfig();
-    updateConfig();
-
-    displayMessage("M8 LPP Emulator", "M8 connected", "", "");
+    updateConfig();  // Sets line2 to bank info, don't overwrite it
 }
 
 /* External MIDI handler (from M8) */
@@ -264,8 +262,7 @@ globalThis.onMidiMessageExternal = function (data) {
         m8Connected = true;
         showingTop = true;
         loadConfig();
-        updateConfig();
-        displayMessage("M8 LPP Emulator", "M8 connected", "", "");
+        updateConfig();  // Sets line2 to bank info, don't overwrite it
     }
 
     let lppNoteNumber = data[1];
@@ -408,7 +405,7 @@ globalThis.onMidiMessageInternal = function (data) {
         } else {
             if (moveControlNumber === moveSHIFT) {
                 shiftHeld = false;
-                displayMessage(undefined, "M8 connected", "", "");
+                updateConfig();  // Restore bank info display
             }
             move_midi_external_send([2 << 4 | 0x8, 0x80, lppNote, 0]);
         }
