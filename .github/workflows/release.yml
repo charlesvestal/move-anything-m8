@@ -37,10 +37,11 @@ jobs:
 
       - name: Commit release.json
         run: |
-          git fetch origin main
-          git checkout main
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          git pull origin main --rebase || true
           git add release.json
-          git commit -m "chore: update release.json for ${{ github.ref_name }}"
-          git push origin main
+          git commit -m "chore: update release.json for ${{ github.ref_name }}" || echo "No changes to commit"
+          git push origin main || git pull --rebase origin main && git push origin main
