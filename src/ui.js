@@ -132,6 +132,8 @@ const m8InitSysex = [0xf0, 0x7e, 0x7f, 0x06, 0x01, 0xf7];
 let m8Connected = false;  /* Track if M8 has connected */
 let initRetryTicks = 0;   /* Ticks since startup for retry logic */
 const INIT_RETRY_INTERVAL = 60;  /* Send init every ~1 second if not connected */
+const INTERNAL_ECHO_TTL_MS = 120;
+const internalEchoSuppress = new Map();
 
 /* Display state */
 let line1 = "M8 LPP Emulator";
@@ -171,20 +173,20 @@ function updateMovePadsToMatchLpp() {
 }
 
 function updateMoveViewPulse() {
-    move_midi_internal_send([0x0b, 0xB0, moveBACK, dim_grey]);
-    move_midi_internal_send([0x0b, 0xB0, moveMENU, dim_grey]);
-    move_midi_internal_send([0x0b, 0xB0, moveCAP, dim_grey]);
-    move_midi_internal_send([0x0b, 0xB0, currentView, light_grey]);
+    sendInternalMidi([0x0b, 0xB0, moveBACK, dim_grey], true);
+    sendInternalMidi([0x0b, 0xB0, moveMENU, dim_grey], true);
+    sendInternalMidi([0x0b, 0xB0, moveCAP, dim_grey], true);
+    sendInternalMidi([0x0b, 0xB0, currentView, light_grey], true);
     if (!showingTop) {
-        move_midi_internal_send([0x0b, 0xBA, currentView, black]);
+        sendInternalMidi([0x0b, 0xBA, currentView, black], true);
     }
 }
 
 function updatePLAYLed() {
-    if (!liveMode && !isPlaying) move_midi_internal_send([0x0b, 0xB0, movePLAY, light_grey]);
-    if (!liveMode && isPlaying) move_midi_internal_send([0x0b, 0xB0, movePLAY, green]);
-    if (liveMode && !isPlaying) move_midi_internal_send([0x0b, 0xB0, movePLAY, sky]);
-    if (liveMode && isPlaying) move_midi_internal_send([0x0b, 0xB0, movePLAY, navy]);
+    if (!liveMode && !isPlaying) sendInternalMidi([0x0b, 0xB0, movePLAY, light_grey], true);
+    if (!liveMode && isPlaying) sendInternalMidi([0x0b, 0xB0, movePLAY, green], true);
+    if (liveMode && !isPlaying) sendInternalMidi([0x0b, 0xB0, movePLAY, sky], true);
+    if (liveMode && isPlaying) sendInternalMidi([0x0b, 0xB0, movePLAY, navy], true);
 }
 
 function sendLPPIdentity() {
@@ -208,6 +210,45 @@ function markM8Connected() {
     showingTop = true;
     loadConfig();
     updateConfig();
+}
+
+function makeEchoKey(status, data1, data2) {
+    return `${status & 0xf0}:${data1 & 0x7f}:${data2 & 0x7f}`;
+}
+
+function pruneEchoSuppression(now) {
+    if (internalEchoSuppress.size < 256) return;
+    for (let [key, expiresAt] of internalEchoSuppress) {
+        if (expiresAt <= now) internalEchoSuppress.delete(key);
+    }
+}
+
+function rememberInternalEcho(status, data1, data2) {
+    const now = Date.now();
+    pruneEchoSuppression(now);
+    internalEchoSuppress.set(makeEchoKey(status, data1, data2), now + INTERNAL_ECHO_TTL_MS);
+}
+
+function isSuppressedEcho(status, data1, data2) {
+    const now = Date.now();
+    const key = makeEchoKey(status, data1, data2);
+    const expiresAt = internalEchoSuppress.get(key);
+    if (expiresAt === undefined) return false;
+    if (expiresAt <= now) {
+        internalEchoSuppress.delete(key);
+        return false;
+    }
+    internalEchoSuppress.delete(key);
+    return true;
+}
+
+function sendInternalMidi(packet, suppressEcho = false) {
+    if (suppressEcho && packet.length >= 4) {
+        /* Track raw status and normalized channel-0 status to catch host channel normalization. */
+        rememberInternalEcho(packet[1], packet[2], packet[3]);
+        rememberInternalEcho(packet[1] & 0xf0, packet[2], packet[3]);
+    }
+    move_midi_internal_send(packet);
 }
 
 function initLPP() {
@@ -280,11 +321,11 @@ globalThis.onMidiMessageExternal = function (data) {
 
     if (moveNoteNumber) {
         if (value === 0x91 && moveVelocity != 0) {
-            move_midi_internal_send([0x09, 0x9f, moveNoteNumber, moveVelocity]);
+            sendInternalMidi([0x09, 0x9f, moveNoteNumber, moveVelocity], true);
         } else {
-            move_midi_internal_send([(maskedValue / 16), maskedValue, moveNoteNumber, moveVelocity]);
+            sendInternalMidi([(maskedValue / 16), maskedValue, moveNoteNumber, moveVelocity], true);
             if (value === 0x92 && moveVelocity != 0) {
-                move_midi_internal_send([0x09, 0x9a, moveNoteNumber, light_grey]);
+                sendInternalMidi([0x09, 0x9a, moveNoteNumber, light_grey], true);
             }
         }
         return;
@@ -309,9 +350,9 @@ globalThis.onMidiMessageExternal = function (data) {
     }
 
     if (moveControlNumber) {
-        move_midi_internal_send([0x0b, 0xB0, moveControlNumber, moveVelocity]);
+        sendInternalMidi([0x0b, 0xB0, moveControlNumber, moveVelocity], true);
         if (value === 0x91) {
-            move_midi_internal_send([0x0b, 0xbe, moveControlNumber, black]);
+            sendInternalMidi([0x0b, 0xbe, moveControlNumber, black], true);
         }
     }
 };
@@ -323,6 +364,8 @@ globalThis.onMidiMessageInternal = function (data) {
     const isAt = data[0] === 0xa0;
 
     if (isAt) return; /* Ignore aftertouch */
+
+    if (isSuppressedEcho(data[0], data[1], data[2])) return;
 
     let activeMoveToLppPadMap = showingTop ? moveToLppPadMapTop : moveToLppPadMapBottom;
 
