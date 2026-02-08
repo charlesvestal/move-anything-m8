@@ -201,14 +201,18 @@ function sendLPPIdentity() {
     move_midi_external_send(LPPInitSysex);
 }
 
+function markM8Connected() {
+    if (m8Connected) return;
+    m8Connected = true;
+    initRetryTicks = 0;
+    showingTop = true;
+    loadConfig();
+    updateConfig();
+}
+
 function initLPP() {
     sendLPPIdentity();
-    showingTop = true;
-    m8Connected = true;
-
-    // enable knobs (primary bank)
-    loadConfig();
-    updateConfig();  // Sets line2 to bank info, don't overwrite it
+    markM8Connected();
 }
 
 /* External MIDI handler (from M8) */
@@ -248,22 +252,22 @@ globalThis.onMidiMessageExternal = function (data) {
         }
         if (arraysAreEqual(sysexBuffer, m8InitSysex)) {
             initLPP();
+        } else if (sysexBuffer.length) {
+            markM8Connected();
         }
         sysexBuffer = [];
         return;
     }
 
-    if (!(noteOn || noteOff)) return;
+    if (!(noteOn || noteOff)) {
+        markM8Connected();
+        return;
+    }
 
     /* If we receive LED data (note messages), M8 is connected.
      * This handles the case where M8 skips the identity request
      * because it already received our proactive identity response. */
-    if (!m8Connected) {
-        m8Connected = true;
-        showingTop = true;
-        loadConfig();
-        updateConfig();  // Now properly updates display via setDisplayMessage
-    }
+    markM8Connected();
 
     let lppNoteNumber = data[1];
     let lppVelocity = data[2];
@@ -345,21 +349,23 @@ globalThis.onMidiMessageInternal = function (data) {
 
         let lppNote = activeMoveToLppPadMap.get(moveNoteNumber);
 
-        if (!lppNote && !shiftHeld && data[2] == 127) {
-            // check if you're switching knob banks
-            if (movePadToKnobBankMap.has(moveNoteNumber)) {
-                changeBank(movePadToKnobBankMap.get(moveNoteNumber));
-                return;
-            }
+        if (!lppNote) {
+            if (data[2] == 127) {
+                // check if you're switching knob/save banks
+                if (movePadToKnobBankMap.has(moveNoteNumber)) {
+                    if (shiftHeld) {
+                        changeSave(movePadToKnobBankMap.get(moveNoteNumber));
+                    } else {
+                        changeBank(movePadToKnobBankMap.get(moveNoteNumber));
+                    }
+                    return;
+                }
 
-            handleMoveKnobs(data);
-            return;
-        } else if (!lppNote && shiftHeld && data[2] == 127) {
-            // check if you're switching saved banks
-            if (movePadToKnobBankMap.has(moveNoteNumber)) {
-                changeSave(movePadToKnobBankMap.get(moveNoteNumber));
-                return;
+                if (!shiftHeld) {
+                    handleMoveKnobs(data);
+                }
             }
+            return;
         }
 
         let moveVelocity = data[2] * 4;
