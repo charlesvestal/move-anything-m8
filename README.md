@@ -1,10 +1,10 @@
-# M8 LPP Emulator for Move Anything
+# M8 LPP Emulator for Move Everything
 
 Novation Launchpad Pro emulation for Dirtywave M8, allowing you to use Ableton Move as an M8 controller.
 
 ## Prerequisites
 
-- [Move Anything](https://github.com/charlesvestal/move-anything) installed on your Ableton Move
+- [Move Everything](https://github.com/charlesvestal/move-anything) installed on your Ableton Move
 - Dirtywave M8 hardware
 
 ## Features
@@ -22,7 +22,7 @@ Novation Launchpad Pro emulation for Dirtywave M8, allowing you to use Ableton M
 ## Installation
 
 Via Module Store (recommended):
-- Launch Move Anything → Module Store → Utilities → M8 LPP Emulator
+- Launch Move Everything → Module Store → Utilities → M8 LPP Emulator
 
 Manual installation:
 ```bash
@@ -44,3 +44,10 @@ The M8 LPP Emulator communicates on **MIDI channel 1**. To avoid conflicts:
 - Do not configure Move tracks to listen on channel 1 and output to channel 1, as this creates MIDI echo that interferes with M8 communication
 
 This ensures M8's Launchpad Pro protocol doesn't trigger Move's synths or get echoed back.
+
+## AI Assistance Disclaimer
+
+This module is part of Move Everything and was developed with AI assistance, including Claude, Codex, and other AI assistants.
+
+All architecture, implementation, and release decisions are reviewed by human maintainers.  
+AI-assisted content may still contain errors, so please validate functionality, security, and license compatibility before production use.
