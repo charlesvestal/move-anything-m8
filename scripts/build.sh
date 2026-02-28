@@ -16,6 +16,7 @@ mkdir -p dist/m8
 # Copy files
 echo "Packaging..."
 cp src/module.json dist/m8/
+[ -f src/help.json ] && cp src/help.json dist/m8/
 cp src/ui.js dist/m8/
 cp src/virtual_knobs.mjs dist/m8/
 

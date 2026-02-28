@@ -1,0 +1,76 @@
+{
+  "title": "M8 LPP Emulator",
+  "children": [
+    {
+      "title": "Overview",
+      "lines": [
+        "Launchpad Pro",
+        "emulator for the",
+        "Dirtywave M8.",
+        "",
+        "Maps Move's pads,",
+        "buttons, and knobs",
+        "to Launchpad Pro",
+        "protocol for M8",
+        "control.",
+        "",
+        "Requires M8 device",
+        "connected via USB."
+      ]
+    },
+    {
+      "title": "Controls",
+      "children": [
+        {
+          "title": "Pads",
+          "lines": [
+            "8x4 pad grid maps",
+            "to Launchpad Pro",
+            "10x10 grid.",
+            "",
+            "Wheel Touch: toggle",
+            " top/bottom view",
+            "",
+            "Colors from M8 are",
+            "translated to Move",
+            "LED colors in real",
+            "time."
+          ]
+        },
+        {
+          "title": "Knobs & Banks",
+          "lines": [
+            "8 knob banks for",
+            "encoder control.",
+            "",
+            "Step 1-8: select",
+            " knob bank",
+            "",
+            "Shift+Step: save",
+            " current knob bank",
+            "",
+            "Knob values sent",
+            "to M8 as encoder",
+            "input."
+          ]
+        },
+        {
+          "title": "Buttons",
+          "lines": [
+            "Menu: Launchpad",
+            " setup/session btn",
+            "",
+            "Back: Launchpad",
+            " back/stop button",
+            "",
+            "Capture: additional",
+            " Launchpad control",
+            "",
+            "Track buttons map",
+            "to LP function row."
+          ]
+        }
+      ]
+    }
+  ]
+}
